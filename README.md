@@ -15,11 +15,12 @@ npm run dev
 npm run build
 ```
 
-Cloudflare Pages settings:
+Cloudflare Workers & Pages settings:
 
-- Framework preset: `Vite`
 - Build command: `npm run build`
-- Build output directory: `dist`
+- Deploy command: `npx wrangler deploy`
+
+The `wrangler.toml` file publishes the Vite `dist` folder as static assets.
 
 ## Layout
 
