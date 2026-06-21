@@ -8,9 +8,9 @@
   <body>
     <div id="app">
       <div id="viewport"></div>
-      <section id="passwordGate" aria-labelledby="gateTitle">
-        <form id="passwordForm">
-          <h1 id="gateTitle">AmaZONE Camp</h1>
+      <section id="entryPanel" aria-labelledby="entryTitle">
+        <form id="entryForm">
+          <h1 id="entryTitle">Enter camp</h1>
           <label for="passwordInput">Camp word</label>
           <div class="password-row">
             <input
@@ -21,12 +21,11 @@
               autocapitalize="none"
               spellcheck="false"
             />
-            <button type="submit">Enter</button>
+            <button type="submit">Enter camp</button>
           </div>
           <p id="passwordError" aria-live="polite"></p>
         </form>
       </section>
-      <button id="enterButton" class="is-hidden" type="button" aria-label="Enter camp">Enter camp</button>
       <div id="hud" aria-live="polite">
         <span id="selectedId">-</span>
         <strong id="selectedName">AmaZONE Camp 2026</strong>

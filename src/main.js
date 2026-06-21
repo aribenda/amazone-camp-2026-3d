@@ -5,14 +5,12 @@ import { camp, feet, feetToWorld, referenceMap, sections } from './campLayout.js
 import { createCampSection } from './objects/builders.js';
 
 const ACCESS_PASSWORD = 'dusty4';
-const ACCESS_STORAGE_KEY = 'amazone-camp-access';
 
 const viewport = document.querySelector('#viewport');
-const passwordGate = document.querySelector('#passwordGate');
-const passwordForm = document.querySelector('#passwordForm');
+const entryPanel = document.querySelector('#entryPanel');
+const entryForm = document.querySelector('#entryForm');
 const passwordInput = document.querySelector('#passwordInput');
 const passwordError = document.querySelector('#passwordError');
-const enterButton = document.querySelector('#enterButton');
 const selectedId = document.querySelector('#selectedId');
 const selectedName = document.querySelector('#selectedName');
 const mobileControls = document.querySelector('#mobileControls');
@@ -48,7 +46,7 @@ const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 const mobileMove = new THREE.Vector2();
 let highlight = null;
 let previousTime = performance.now();
-let isAuthorized = sessionStorage.getItem(ACCESS_STORAGE_KEY) === 'ok';
+let isAuthorized = false;
 let joystickPointerId = null;
 let lookPointerId = null;
 let lookStart = null;
@@ -168,20 +166,17 @@ function setupCampSections() {
 }
 
 function setupControls() {
-  passwordForm.addEventListener('submit', handlePasswordSubmit);
-  enterButton.addEventListener('click', () => {
-    if (isAuthorized) {
-      controls.lock();
-    }
-  });
+  entryForm.addEventListener('submit', handlePasswordSubmit);
 
   controls.addEventListener('lock', () => {
-    enterButton.classList.add('is-hidden');
+    entryPanel.classList.add('is-hidden');
   });
 
   controls.addEventListener('unlock', () => {
-    if (isAuthorized && !usesTouchControls()) {
-      enterButton.classList.remove('is-hidden');
+    if (!usesTouchControls()) {
+      isAuthorized = false;
+      passwordInput.value = '';
+      syncAccessUi();
     }
   });
 
@@ -206,7 +201,6 @@ function handlePasswordSubmit(event) {
     return;
   }
 
-  sessionStorage.setItem(ACCESS_STORAGE_KEY, 'ok');
   isAuthorized = true;
   passwordError.textContent = '';
   syncAccessUi();
@@ -219,9 +213,8 @@ function handlePasswordSubmit(event) {
 }
 
 function syncAccessUi() {
-  passwordGate.classList.toggle('is-hidden', isAuthorized);
+  entryPanel.classList.toggle('is-hidden', isAuthorized);
   mobileControls.classList.toggle('is-hidden', !isAuthorized || !usesTouchControls());
-  enterButton.classList.toggle('is-hidden', !isAuthorized || usesTouchControls() || controls.isLocked);
   document.body.classList.toggle('is-authorized', isAuthorized);
 
   if (!isAuthorized) {
