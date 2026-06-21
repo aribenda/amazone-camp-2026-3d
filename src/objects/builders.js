@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { feet, feetToWorld } from '../campLayout.js';
 import { createTextLabel } from './textLabels.js';
 
@@ -6,6 +7,33 @@ const defaultMaterialOptions = {
   roughness: 0.85,
   metalness: 0.02,
 };
+
+let yurtWallMaterial;
+let yurtRoofMaterial;
+let yurtTapeMaterial;
+const gltfLoader = new GLTFLoader();
+const modelCache = new Map();
+
+const carModels = [
+  {
+    url: '/models/2005_bmw_m3.glb',
+    lengthFt: 11.2,
+    widthFt: 5,
+    heightFt: 3.8,
+  },
+  {
+    url: '/models/car3.glb',
+    lengthFt: 17,
+    widthFt: 7.1,
+    heightFt: 5.8,
+  },
+  {
+    url: '/models/wasteland_wagon.glb',
+    lengthFt: 17,
+    widthFt: 6.8,
+    heightFt: 6.2,
+  },
+];
 
 export function createCampSection(section) {
   const group = new THREE.Group();
@@ -33,7 +61,7 @@ export function createCampSection(section) {
     bus: buildVehicle,
     rv: buildMultiVehicle,
     parking: buildParking,
-    yurts: buildPods,
+    yurts: buildYurts,
     shiftpods: buildPods,
   };
 
@@ -274,20 +302,13 @@ function buildTentCamping(group, section) {
 
 function buildMultiVehicle(group, section) {
   section.parts.forEach((part) => {
-    addPartBox(group, section, part, feet(8), section.color, 0.96);
+    addRV(group, section, part);
   });
 }
 
 function buildParking(group, section) {
-  section.parts.forEach((part) => {
-    addPartBox(group, section, part, feet(0.55), section.color, 0.54);
-    const { x, z } = feetToWorld(part.xFt, part.zFt);
-    const marker = new THREE.Mesh(
-      new THREE.BoxGeometry(feet(part.widthFt * 0.78), feet(0.08), feet(0.3)),
-      materialFor('#101820', 0.32),
-    );
-    marker.position.set(x, feet(0.62), z);
-    group.add(marker);
+  getCarParkingSpots().forEach((spot, index) => {
+    addModelCar(group, section, spot, carModels[spot.modelIndex], index);
   });
 }
 
@@ -310,6 +331,280 @@ function buildPods(group, section) {
     roof.position.set(x, height * 0.9, z);
     group.add(roof);
   });
+}
+
+function buildYurts(group, section) {
+  const radius = feet(section.radiusFt);
+  const totalHeight = feet(section.heightFt);
+  const wallHeight = totalHeight * 0.58;
+  const roofHeight = totalHeight * 0.56;
+  const wallGeometry = new THREE.CylinderGeometry(radius, radius, wallHeight, 8, 1, false);
+  const roofGeometry = new THREE.ConeGeometry(radius * 1.04, roofHeight, 8, 1, false);
+  const ringGeometry = new THREE.TorusGeometry(radius * 1.006, feet(0.035), 8, 72);
+  const verticalSeamGeometry = new THREE.BoxGeometry(feet(0.16), wallHeight * 0.95, feet(0.055));
+
+  section.positionsFt.forEach(([xFt, zFt], index) => {
+    const { x, z } = feetToWorld(xFt, zFt);
+    const yurt = new THREE.Group();
+    yurt.position.set(x, 0, z);
+    yurt.rotation.y = (index % 8) * (Math.PI / 16);
+
+    const wall = new THREE.Mesh(wallGeometry, getYurtWallMaterial());
+    wall.position.y = wallHeight / 2;
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    yurt.add(wall);
+
+    const roof = new THREE.Mesh(roofGeometry, getYurtRoofMaterial());
+    roof.position.y = wallHeight + roofHeight / 2 - feet(0.2);
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    yurt.add(roof);
+
+    [0.23, 0.5, 0.78].forEach((ratio) => {
+      const ring = new THREE.Mesh(ringGeometry, getYurtTapeMaterial());
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = wallHeight * ratio;
+      yurt.add(ring);
+    });
+
+    for (let side = 0; side < 8; side += 1) {
+      const angle = (side / 8) * Math.PI * 2;
+      const seam = new THREE.Mesh(verticalSeamGeometry, getYurtTapeMaterial());
+      seam.position.set(Math.sin(angle) * radius, wallHeight * 0.5, Math.cos(angle) * radius);
+      seam.rotation.y = angle;
+      yurt.add(seam);
+    }
+
+    addYurtScuffs(yurt, radius, wallHeight, index);
+    group.add(yurt);
+  });
+}
+
+function addRV(group, section, part) {
+  const { x, z } = feetToWorld(part.xFt, part.zFt);
+  const rv = new THREE.Group();
+  const length = Math.max(feet(Math.max(part.widthFt, part.depthFt) * 0.84), feet(7));
+  const width = Math.min(feet(Math.min(part.widthFt, part.depthFt) * 0.82), feet(8.2));
+  const isTrailer = part.widthFt < 10 || part.depthFt < 10;
+  const silver = materialFor('#d7dcda', 0.98);
+  const white = materialFor('#f0efe7', 0.98);
+  const trimMaterial = materialFor('#b9b4a8', 0.9);
+  const windowMaterial = materialFor('#283b43', 0.78);
+
+  rv.position.set(x, 0, z);
+  rv.rotation.y = part.widthFt >= part.depthFt ? Math.PI / 2 : 0;
+
+  if (isTrailer) {
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(width, feet(5.4), length),
+      silver,
+    );
+    body.position.y = feet(3.05);
+    body.castShadow = true;
+    body.receiveShadow = true;
+    rv.add(body);
+
+    const roof = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 1.04, feet(0.32), length * 0.96),
+      materialFor('#eef0ea', 0.98),
+    );
+    roof.position.y = feet(5.92);
+    rv.add(roof);
+  } else {
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(width, feet(6.5), length),
+      white,
+    );
+    body.position.y = feet(3.45);
+    body.castShadow = true;
+    body.receiveShadow = true;
+    rv.add(body);
+
+    const cab = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.82, feet(3.8), length * 0.24),
+      materialFor('#d4d8d2', 0.96),
+    );
+    cab.position.set(0, feet(2.65), length * 0.62);
+    rv.add(cab);
+
+    const roofUnit = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.45, feet(0.42), length * 0.18),
+      trimMaterial,
+    );
+    roofUnit.position.set(0, feet(7), -length * 0.16);
+    rv.add(roofUnit);
+  }
+
+  [-0.28, 0.08, 0.42].forEach((offset) => {
+    const window = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.09, feet(1.05), length * 0.15),
+      windowMaterial,
+    );
+    window.position.set(width * 0.51, feet(4.25), length * offset);
+    rv.add(window);
+  });
+
+  const awning = new THREE.Mesh(
+    new THREE.BoxGeometry(width * 0.06, feet(0.18), length * 0.58),
+    materialFor('#c8b88b', 0.92),
+  );
+  awning.position.set(width * 0.56, feet(5.55), -length * 0.06);
+  rv.add(awning);
+
+  addVehicleWheels(rv, width, length, feet(1.2));
+  group.add(rv);
+}
+
+function getCarParkingSpots() {
+  // The original plan draws one parking spot near the toilets/fire lane and six
+  // lower spots. This uses that lower footprint plus two extra staggered cars
+  // inside the same boundary, keeping clear of the toilet/fire-lane area.
+  return [
+    { xFt: 102, zFt: 174, rotationDeg: -2, modelIndex: 2 },
+    { xFt: 110, zFt: 174, rotationDeg: 1, modelIndex: 1 },
+    { xFt: 118, zFt: 174, rotationDeg: -1, modelIndex: 0 },
+    { xFt: 126, zFt: 174, rotationDeg: 2, modelIndex: 2 },
+    { xFt: 134, zFt: 174, rotationDeg: -2, modelIndex: 1 },
+    { xFt: 142, zFt: 174, rotationDeg: 1, modelIndex: 2 },
+    { xFt: 150, zFt: 174, rotationDeg: -1, modelIndex: 1 },
+    { xFt: 102, zFt: 190, rotationDeg: 2, modelIndex: 1 },
+    { xFt: 110, zFt: 190, rotationDeg: -1, modelIndex: 2 },
+    { xFt: 118, zFt: 190, rotationDeg: 1, modelIndex: 0 },
+    { xFt: 126, zFt: 190, rotationDeg: -2, modelIndex: 1 },
+    { xFt: 134, zFt: 190, rotationDeg: 2, modelIndex: 2 },
+    { xFt: 142, zFt: 190, rotationDeg: -1, modelIndex: 1 },
+    { xFt: 150, zFt: 190, rotationDeg: 1, modelIndex: 2 },
+  ].map((spot) => ({
+    ...spot,
+    rotationY: THREE.MathUtils.degToRad(spot.rotationDeg),
+  }));
+}
+
+function addModelCar(group, section, spot, modelConfig, index) {
+  const { x, z } = feetToWorld(spot.xFt, spot.zFt);
+  const anchor = new THREE.Group();
+  anchor.name = `${section.name} car ${index + 1}`;
+  anchor.position.set(x, 0, z);
+  anchor.rotation.y = spot.rotationY;
+  anchor.userData.section = section;
+
+  const hitBox = new THREE.Mesh(
+    new THREE.BoxGeometry(feet(modelConfig.widthFt), feet(modelConfig.heightFt), feet(modelConfig.lengthFt)),
+    new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    }),
+  );
+  hitBox.position.y = feet(modelConfig.heightFt / 2);
+  hitBox.userData.section = section;
+  anchor.add(hitBox);
+
+  group.add(anchor);
+
+  loadModel(modelConfig.url)
+    .then((source) => {
+      const model = source.clone(true);
+      model.userData.section = section;
+      prepareLoadedModel(model, section);
+      scaleModelToLength(model, modelConfig);
+      anchor.add(model);
+    })
+    .catch((error) => {
+      console.warn(`Could not load car model ${modelConfig.url}`, error);
+    });
+}
+
+function loadModel(url) {
+  if (!modelCache.has(url)) {
+    modelCache.set(
+      url,
+      gltfLoader.loadAsync(url).then((gltf) => gltf.scene),
+    );
+  }
+
+  return modelCache.get(url);
+}
+
+function prepareLoadedModel(model, section) {
+  model.traverse((child) => {
+    child.userData.section = section;
+    if (!child.isMesh) {
+      return;
+    }
+
+    child.castShadow = true;
+    child.receiveShadow = true;
+    if (child.material) {
+      child.material.side = THREE.FrontSide;
+    }
+  });
+}
+
+function scaleModelToLength(model, { lengthFt }) {
+  const initialBox = new THREE.Box3().setFromObject(model);
+  const initialCenter = initialBox.getCenter(new THREE.Vector3());
+  model.position.sub(initialCenter);
+  model.updateMatrixWorld(true);
+
+  const unrotatedSize = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+  const longAxis = Math.max(unrotatedSize.x, unrotatedSize.z);
+  model.rotation.y = unrotatedSize.x > unrotatedSize.z ? Math.PI / 2 : 0;
+  model.scale.multiplyScalar(feet(lengthFt) / Math.max(longAxis, 0.001));
+  model.updateMatrixWorld(true);
+
+  const scaledBox = new THREE.Box3().setFromObject(model);
+  const center = scaledBox.getCenter(new THREE.Vector3());
+  const minY = scaledBox.min.y;
+  model.position.x -= center.x;
+  model.position.z -= center.z;
+  model.position.y -= minY;
+}
+
+function addVehicleWheels(group, width, length, radius) {
+  const tireMaterial = materialFor('#111416', 0.96);
+  const rimMaterial = materialFor('#c7c1b4', 0.82);
+  const wheelGeometry = new THREE.CylinderGeometry(radius, radius, feet(0.55), 18);
+  const rimGeometry = new THREE.CylinderGeometry(radius * 0.48, radius * 0.48, feet(0.6), 14);
+
+  [-1, 1].forEach((xSign) => {
+    [-0.34, 0.34].forEach((zOffset) => {
+      const wheel = new THREE.Mesh(wheelGeometry, tireMaterial);
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(xSign * width * 0.52, radius, zOffset * length);
+      group.add(wheel);
+
+      const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+      rim.rotation.z = Math.PI / 2;
+      rim.position.copy(wheel.position);
+      group.add(rim);
+    });
+  });
+}
+
+function addYurtScuffs(group, radius, wallHeight, seed) {
+  const scuffMaterial = new THREE.MeshBasicMaterial({
+    color: '#6f7069',
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+  });
+
+  for (let index = 0; index < 7; index += 1) {
+    const angle = ((seed * 0.37 + index * 0.19) % 1) * Math.PI * 2;
+    const width = feet(0.65 + (index % 3) * 0.26);
+    const height = feet(0.16 + (index % 2) * 0.18);
+    const scuff = new THREE.Mesh(new THREE.PlaneGeometry(width, height), scuffMaterial);
+    scuff.position.set(
+      Math.sin(angle) * (radius + feet(0.035)),
+      wallHeight * (0.22 + ((seed + index) % 5) * 0.13),
+      Math.cos(angle) * (radius + feet(0.035)),
+    );
+    scuff.rotation.y = angle;
+    scuff.rotation.z = ((seed + index) % 4 - 1.5) * 0.08;
+    group.add(scuff);
+  }
 }
 
 function addFloor(group, section, opacity) {
@@ -394,6 +689,151 @@ function markClickable(root, section) {
   root.traverse((child) => {
     child.userData.section = section;
   });
+}
+
+function getYurtWallMaterial() {
+  if (!yurtWallMaterial) {
+    const texture = createYurtTexture('wall');
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(2.2, 1);
+    yurtWallMaterial = new THREE.MeshStandardMaterial({
+      color: '#f8fbfa',
+      map: texture,
+      roughness: 0.22,
+      metalness: 0.2,
+      emissive: '#d6e0df',
+      emissiveIntensity: 0.2,
+      envMapIntensity: 0.65,
+    });
+  }
+
+  return yurtWallMaterial;
+}
+
+function getYurtRoofMaterial() {
+  if (!yurtRoofMaterial) {
+    const texture = createYurtTexture('roof');
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1.6, 1);
+    yurtRoofMaterial = new THREE.MeshStandardMaterial({
+      color: '#fbfdfc',
+      map: texture,
+      roughness: 0.18,
+      metalness: 0.24,
+      emissive: '#dce7e5',
+      emissiveIntensity: 0.24,
+      envMapIntensity: 0.72,
+    });
+  }
+
+  return yurtRoofMaterial;
+}
+
+function getYurtTapeMaterial() {
+  if (!yurtTapeMaterial) {
+    yurtTapeMaterial = new THREE.MeshStandardMaterial({
+      color: '#edf2ef',
+      roughness: 0.26,
+      metalness: 0.16,
+      emissive: '#cbd6d3',
+      emissiveIntensity: 0.16,
+      transparent: true,
+      opacity: 0.9,
+    });
+  }
+
+  return yurtTapeMaterial;
+}
+
+function createYurtTexture(type) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const context = canvas.getContext('2d');
+  const base = type === 'roof' ? '#e9eeec' : '#e3e9e7';
+  const seam = type === 'roof' ? '#f8fbf6' : '#eef3f0';
+  const cool = '#bfcfcd';
+
+  context.fillStyle = base;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.72)');
+  gradient.addColorStop(0.38, 'rgba(198,220,219,0.26)');
+  gradient.addColorStop(1, 'rgba(98,111,110,0.18)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  context.globalAlpha = 0.28;
+  context.strokeStyle = cool;
+  for (let x = -80; x < canvas.width + 120; x += 34) {
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x + 92, canvas.height);
+    context.stroke();
+  }
+
+  context.globalAlpha = 0.74;
+  context.strokeStyle = seam;
+  context.lineWidth = type === 'roof' ? 4 : 6;
+  const seamStep = type === 'roof' ? 120 : 92;
+  for (let y = seamStep; y < canvas.height; y += seamStep) {
+    context.beginPath();
+    context.moveTo(0, y + roughOffset(y, 3));
+    context.lineTo(canvas.width, y + roughOffset(y + 9, 3));
+    context.stroke();
+  }
+
+  context.globalAlpha = 0.2;
+  context.strokeStyle = '#747d7b';
+  context.lineWidth = 1;
+  for (let y = 58; y < canvas.height; y += 86) {
+    context.beginPath();
+    context.moveTo(0, y + roughOffset(y, 5));
+    context.lineTo(canvas.width, y + roughOffset(y + 21, 5));
+    context.stroke();
+  }
+
+  context.globalAlpha = 0.18;
+  for (let index = 0; index < 4200; index += 1) {
+    const x = (index * 97) % canvas.width;
+    const y = (index * 53) % canvas.height;
+    const lightness = 94 - ((index * 17) % 34);
+    context.fillStyle = `hsl(176 6% ${lightness}%)`;
+    context.fillRect(x, y, 1 + (index % 2), 1);
+  }
+
+  context.globalAlpha = 0.2;
+  context.fillStyle = '#666a66';
+  for (let index = 0; index < 38; index += 1) {
+    const x = (index * 61) % canvas.width;
+    const y = (index * 137) % canvas.height;
+    context.save();
+    context.translate(x, y);
+    context.rotate(((index % 9) - 4) * 0.08);
+    context.fillRect(0, 0, 18 + (index % 4) * 9, 3 + (index % 3) * 2);
+    context.restore();
+  }
+
+  context.globalAlpha = 0.24;
+  context.fillStyle = '#f7faf2';
+  for (let index = 0; index < 18; index += 1) {
+    const x = (index * 113) % canvas.width;
+    const y = (index * 71) % canvas.height;
+    context.fillRect(x, y, 42 + (index % 3) * 20, 8 + (index % 2) * 6);
+  }
+
+  context.globalAlpha = 1;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
+}
+
+function roughOffset(seed, amount) {
+  return Math.sin(seed * 12.9898) * amount;
 }
 
 function materialFor(color, opacity = 1) {

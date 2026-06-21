@@ -8,24 +8,8 @@
   <body>
     <div id="app">
       <div id="viewport"></div>
-      <section id="entryPanel" aria-labelledby="entryTitle">
-        <form id="entryForm">
-          <h1 id="entryTitle">Enter camp</h1>
-          <label for="passwordInput">Camp word</label>
-          <div class="password-row">
-            <input
-              id="passwordInput"
-              name="password"
-              type="password"
-              autocomplete="off"
-              autocapitalize="none"
-              spellcheck="false"
-            />
-            <button type="submit">Enter camp</button>
-          </div>
-          <p id="passwordError" aria-live="polite"></p>
-        </form>
-      </section>
+      <audio id="campMusic" src="/audio/tribal-journey.mp3" preload="metadata" autoplay loop></audio>
+      <button id="musicToggle" type="button" aria-pressed="false">Play music</button>
       <div id="hud" aria-live="polite">
         <span id="selectedId">-</span>
         <strong id="selectedName">AmaZONE Camp 2026</strong>

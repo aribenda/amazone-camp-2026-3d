@@ -4,13 +4,9 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 import { camp, feet, feetToWorld, referenceMap, sections } from './campLayout.js';
 import { createCampSection } from './objects/builders.js';
 
-const ACCESS_PASSWORD = 'dusty4';
-
 const viewport = document.querySelector('#viewport');
-const entryPanel = document.querySelector('#entryPanel');
-const entryForm = document.querySelector('#entryForm');
-const passwordInput = document.querySelector('#passwordInput');
-const passwordError = document.querySelector('#passwordError');
+const campMusic = document.querySelector('#campMusic');
+const musicToggle = document.querySelector('#musicToggle');
 const selectedId = document.querySelector('#selectedId');
 const selectedName = document.querySelector('#selectedName');
 const mobileControls = document.querySelector('#mobileControls');
@@ -44,9 +40,10 @@ const rotatingLabels = [];
 const sectionGroups = new Map();
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 const mobileMove = new THREE.Vector2();
+const keyboardVelocity = new THREE.Vector2();
 let highlight = null;
 let previousTime = performance.now();
-let isAuthorized = false;
+let isAuthorized = true;
 let joystickPointerId = null;
 let lookPointerId = null;
 let lookStart = null;
@@ -61,6 +58,9 @@ const movement = {
 
 const isTouchDevice = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 const MOBILE_CONTROL_WIDTH = 760;
+const MAX_KEYBOARD_SPEED = 18;
+const KEYBOARD_ACCELERATION = 6;
+const KEYBOARD_DECELERATION = 16;
 
 setupLights();
 setupGround();
@@ -69,6 +69,7 @@ setupCampBounds();
 setupCampSections();
 setupControls();
 syncAccessUi();
+tryStartMusic();
 animate();
 
 function setupLights() {
@@ -166,18 +167,17 @@ function setupCampSections() {
 }
 
 function setupControls() {
-  entryForm.addEventListener('submit', handlePasswordSubmit);
+  musicToggle.addEventListener('click', toggleMusic);
+  window.addEventListener('pointerdown', startMusicFromGesture, { once: true });
+  window.addEventListener('keydown', startMusicFromGesture, { once: true });
 
   controls.addEventListener('lock', () => {
-    entryPanel.classList.add('is-hidden');
+    document.body.classList.add('is-looking');
   });
 
   controls.addEventListener('unlock', () => {
-    if (!usesTouchControls()) {
-      isAuthorized = false;
-      passwordInput.value = '';
-      syncAccessUi();
-    }
+    keyboardVelocity.set(0, 0);
+    document.body.classList.remove('is-looking');
   });
 
   window.addEventListener('keydown', (event) => updateMovement(event.code, true));
@@ -191,35 +191,44 @@ function setupControls() {
   window.addEventListener('resize', handleResize);
 }
 
-function handlePasswordSubmit(event) {
-  event.preventDefault();
-  const attempt = passwordInput.value.trim().toLowerCase();
-
-  if (attempt !== ACCESS_PASSWORD) {
-    passwordError.textContent = 'Not quite. Try the dusty camp word.';
-    passwordInput.select();
-    return;
+function startMusicFromGesture() {
+  if (campMusic.paused) {
+    tryStartMusic();
   }
-
-  isAuthorized = true;
-  passwordError.textContent = '';
-  syncAccessUi();
-
-  if (usesTouchControls()) {
-    return;
-  }
-
-  controls.lock();
 }
 
 function syncAccessUi() {
-  entryPanel.classList.toggle('is-hidden', isAuthorized);
   mobileControls.classList.toggle('is-hidden', !isAuthorized || !usesTouchControls());
   document.body.classList.toggle('is-authorized', isAuthorized);
+}
 
-  if (!isAuthorized) {
-    window.setTimeout(() => passwordInput.focus(), 0);
+async function tryStartMusic() {
+  try {
+    await campMusic.play();
+    updateMusicButton(true);
+  } catch {
+    updateMusicButton(false);
   }
+}
+
+async function toggleMusic() {
+  if (campMusic.paused) {
+    try {
+      await campMusic.play();
+      updateMusicButton(true);
+    } catch {
+      updateMusicButton(false);
+    }
+    return;
+  }
+
+  campMusic.pause();
+  updateMusicButton(false);
+}
+
+function updateMusicButton(isPlaying) {
+  musicToggle.textContent = isPlaying ? 'Pause music' : 'Play music';
+  musicToggle.setAttribute('aria-pressed', String(isPlaying));
 }
 
 function updateMovement(code, isPressed) {
@@ -231,6 +240,11 @@ function updateMovement(code, isPressed) {
 
 function handleClick(event) {
   if (!isAuthorized) {
+    return;
+  }
+
+  if (!usesTouchControls() && !controls.isLocked) {
+    controls.lock();
     return;
   }
 
@@ -388,15 +402,24 @@ function animate() {
   previousTime = now;
 
   if (controls.isLocked) {
-    const speed = 18 * deltaSeconds;
     const xAxis = Number(movement.right) - Number(movement.left);
     const zAxis = Number(movement.forward) - Number(movement.backward);
+    const target = new THREE.Vector2(xAxis, zAxis);
 
-    if (zAxis !== 0) {
-      controls.moveForward(zAxis * speed);
+    if (target.lengthSq() > 1) {
+      target.normalize();
     }
-    if (xAxis !== 0) {
-      controls.moveRight(xAxis * speed);
+
+    target.multiplyScalar(MAX_KEYBOARD_SPEED);
+    const rate = target.lengthSq() > 0 ? KEYBOARD_ACCELERATION : KEYBOARD_DECELERATION;
+    keyboardVelocity.x = moveToward(keyboardVelocity.x, target.x, rate * deltaSeconds);
+    keyboardVelocity.y = moveToward(keyboardVelocity.y, target.y, rate * deltaSeconds);
+
+    if (Math.abs(keyboardVelocity.y) > 0.001) {
+      controls.moveForward(keyboardVelocity.y * deltaSeconds);
+    }
+    if (Math.abs(keyboardVelocity.x) > 0.001) {
+      controls.moveRight(keyboardVelocity.x * deltaSeconds);
     }
 
     clampCameraToCamp();
@@ -416,4 +439,12 @@ function animate() {
   }
 
   renderer.render(scene, camera);
+}
+
+function moveToward(current, target, maxDelta) {
+  if (Math.abs(target - current) <= maxDelta) {
+    return target;
+  }
+
+  return current + Math.sign(target - current) * maxDelta;
 }
