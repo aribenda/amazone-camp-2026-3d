@@ -4,10 +4,20 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 import { camp, feet, feetToWorld, referenceMap, sections } from './campLayout.js';
 import { createCampSection } from './objects/builders.js';
 
+const ACCESS_PASSWORD = 'dusty4';
+const ACCESS_STORAGE_KEY = 'amazone-camp-access';
+
 const viewport = document.querySelector('#viewport');
+const passwordGate = document.querySelector('#passwordGate');
+const passwordForm = document.querySelector('#passwordForm');
+const passwordInput = document.querySelector('#passwordInput');
+const passwordError = document.querySelector('#passwordError');
 const enterButton = document.querySelector('#enterButton');
 const selectedId = document.querySelector('#selectedId');
 const selectedName = document.querySelector('#selectedName');
+const mobileControls = document.querySelector('#mobileControls');
+const joystick = document.querySelector('#joystick');
+const joystickKnob = document.querySelector('#joystickKnob');
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#d8d1bd');
@@ -30,10 +40,19 @@ scene.add(controls.object);
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
+const labelTarget = new THREE.Vector3();
 const clickableObjects = [];
+const rotatingLabels = [];
 const sectionGroups = new Map();
+const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+const mobileMove = new THREE.Vector2();
 let highlight = null;
 let previousTime = performance.now();
+let isAuthorized = sessionStorage.getItem(ACCESS_STORAGE_KEY) === 'ok';
+let joystickPointerId = null;
+let lookPointerId = null;
+let lookStart = null;
+let lastLook = null;
 
 const movement = {
   forward: false,
@@ -42,12 +61,16 @@ const movement = {
   right: false,
 };
 
+const isTouchDevice = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+const MOBILE_CONTROL_WIDTH = 760;
+
 setupLights();
 setupGround();
 setupReferenceMap();
 setupCampBounds();
 setupCampSections();
 setupControls();
+syncAccessUi();
 animate();
 
 function setupLights() {
@@ -132,6 +155,9 @@ function setupCampSections() {
     sectionGroups.set(section.id, group);
     scene.add(group);
     group.traverse((child) => {
+      if (child.userData.rotatingLabel) {
+        rotatingLabels.push(child);
+      }
       if (child.isMesh || child.isSprite) {
         clickableObjects.push(child);
         child.castShadow = child.isMesh;
@@ -142,20 +168,65 @@ function setupCampSections() {
 }
 
 function setupControls() {
-  enterButton.addEventListener('click', () => controls.lock());
+  passwordForm.addEventListener('submit', handlePasswordSubmit);
+  enterButton.addEventListener('click', () => {
+    if (isAuthorized) {
+      controls.lock();
+    }
+  });
 
   controls.addEventListener('lock', () => {
     enterButton.classList.add('is-hidden');
   });
 
   controls.addEventListener('unlock', () => {
-    enterButton.classList.remove('is-hidden');
+    if (isAuthorized && !usesTouchControls()) {
+      enterButton.classList.remove('is-hidden');
+    }
   });
 
   window.addEventListener('keydown', (event) => updateMovement(event.code, true));
   window.addEventListener('keyup', (event) => updateMovement(event.code, false));
   renderer.domElement.addEventListener('click', handleClick);
+  renderer.domElement.addEventListener('pointerdown', handleLookStart);
+  window.addEventListener('pointermove', handlePointerMove);
+  window.addEventListener('pointerup', handlePointerEnd);
+  window.addEventListener('pointercancel', handlePointerEnd);
+  joystick.addEventListener('pointerdown', handleJoystickStart);
   window.addEventListener('resize', handleResize);
+}
+
+function handlePasswordSubmit(event) {
+  event.preventDefault();
+  const attempt = passwordInput.value.trim().toLowerCase();
+
+  if (attempt !== ACCESS_PASSWORD) {
+    passwordError.textContent = 'Not quite. Try the dusty camp word.';
+    passwordInput.select();
+    return;
+  }
+
+  sessionStorage.setItem(ACCESS_STORAGE_KEY, 'ok');
+  isAuthorized = true;
+  passwordError.textContent = '';
+  syncAccessUi();
+
+  if (usesTouchControls()) {
+    return;
+  }
+
+  controls.lock();
+}
+
+function syncAccessUi() {
+  passwordGate.classList.toggle('is-hidden', isAuthorized);
+  mobileControls.classList.toggle('is-hidden', !isAuthorized || !usesTouchControls());
+  enterButton.classList.toggle('is-hidden', !isAuthorized || usesTouchControls() || controls.isLocked);
+  document.body.classList.toggle('is-authorized', isAuthorized);
+
+  if (!isAuthorized) {
+    window.setTimeout(() => passwordInput.focus(), 0);
+  }
 }
 
 function updateMovement(code, isPressed) {
@@ -166,11 +237,17 @@ function updateMovement(code, isPressed) {
 }
 
 function handleClick(event) {
-  if (!controls.isLocked) {
+  if (!isAuthorized) {
     return;
   }
 
-  pointer.set(0, 0);
+  if (controls.isLocked) {
+    pointer.set(0, 0);
+  } else {
+    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  }
+
   raycaster.setFromCamera(pointer, camera);
 
   const hit = raycaster.intersectObjects(clickableObjects, false).find((item) => item.object.userData.section);
@@ -197,10 +274,118 @@ function selectSection(section) {
   scene.add(highlight);
 }
 
+function handleJoystickStart(event) {
+  if (!isAuthorized || !usesTouchControls()) {
+    return;
+  }
+
+  joystickPointerId = event.pointerId;
+  joystick.setPointerCapture(event.pointerId);
+  updateJoystick(event);
+}
+
+function handleLookStart(event) {
+  if (!isAuthorized || !usesTouchControls() || event.pointerId === joystickPointerId) {
+    return;
+  }
+
+  lookPointerId = event.pointerId;
+  lookStart = { x: event.clientX, y: event.clientY };
+  lastLook = { x: event.clientX, y: event.clientY };
+  renderer.domElement.setPointerCapture(event.pointerId);
+}
+
+function handlePointerMove(event) {
+  if (event.pointerId === joystickPointerId) {
+    updateJoystick(event);
+    return;
+  }
+
+  if (event.pointerId !== lookPointerId || !lastLook) {
+    return;
+  }
+
+  rotateCamera(event.clientX - lastLook.x, event.clientY - lastLook.y);
+  lastLook = { x: event.clientX, y: event.clientY };
+}
+
+function handlePointerEnd(event) {
+  if (event.pointerId === joystickPointerId) {
+    joystickPointerId = null;
+    mobileMove.set(0, 0);
+    joystickKnob.style.transform = 'translate(-50%, -50%)';
+  }
+
+  if (event.pointerId === lookPointerId) {
+    lookPointerId = null;
+    lastLook = null;
+    lookStart = null;
+  }
+}
+
+function updateJoystick(event) {
+  const rect = joystick.getBoundingClientRect();
+  const radius = rect.width / 2;
+  const centerX = rect.left + radius;
+  const centerY = rect.top + radius;
+  const deltaX = event.clientX - centerX;
+  const deltaY = event.clientY - centerY;
+  const distance = Math.min(Math.hypot(deltaX, deltaY), radius);
+  const angle = Math.atan2(deltaY, deltaX);
+  const knobX = Math.cos(angle) * distance;
+  const knobY = Math.sin(angle) * distance;
+
+  joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+  mobileMove.set(knobX / radius, -knobY / radius);
+}
+
+function rotateCamera(deltaX, deltaY) {
+  cameraEuler.setFromQuaternion(camera.quaternion);
+  cameraEuler.y -= deltaX * 0.004;
+  cameraEuler.x -= deltaY * 0.004;
+  cameraEuler.x = THREE.MathUtils.clamp(cameraEuler.x, -Math.PI / 2.4, Math.PI / 2.4);
+  camera.quaternion.setFromEuler(cameraEuler);
+}
+
 function handleResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  syncAccessUi();
+}
+
+function moveWithTouch(deltaSeconds) {
+  if (!isAuthorized || !usesTouchControls() || mobileMove.lengthSq() === 0) {
+    return;
+  }
+
+  const speed = 13 * deltaSeconds;
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  forward.normalize();
+
+  const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+  camera.position.addScaledVector(forward, mobileMove.y * speed);
+  camera.position.addScaledVector(right, mobileMove.x * speed);
+}
+
+function usesTouchControls() {
+  return isTouchDevice || window.innerWidth <= MOBILE_CONTROL_WIDTH;
+}
+
+function clampCameraToCamp() {
+  camera.position.y = feet(6);
+  camera.position.x = THREE.MathUtils.clamp(
+    camera.position.x,
+    -feet(camp.widthFt / 2 + 12),
+    feet(camp.widthFt / 2 + 12),
+  );
+  camera.position.z = THREE.MathUtils.clamp(
+    camera.position.z,
+    -feet(camp.depthFt / 2 + 12),
+    feet(camp.depthFt / 2 + 12),
+  );
 }
 
 function animate() {
@@ -221,18 +406,17 @@ function animate() {
       controls.moveRight(xAxis * speed);
     }
 
-    camera.position.y = feet(6);
-    camera.position.x = THREE.MathUtils.clamp(
-      camera.position.x,
-      -feet(camp.widthFt / 2 + 12),
-      feet(camp.widthFt / 2 + 12),
-    );
-    camera.position.z = THREE.MathUtils.clamp(
-      camera.position.z,
-      -feet(camp.depthFt / 2 + 12),
-      feet(camp.depthFt / 2 + 12),
-    );
+    clampCameraToCamp();
   }
+
+  moveWithTouch(deltaSeconds);
+  clampCameraToCamp();
+
+  rotatingLabels.forEach((label, index) => {
+    labelTarget.set(camera.position.x, label.position.y, camera.position.z);
+    label.lookAt(labelTarget);
+    label.rotateY(Math.sin(now * 0.001 + index) * 0.18);
+  });
 
   if (highlight) {
     highlight.update();

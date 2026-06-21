@@ -46,6 +46,33 @@ export const legend = {
   24: 'Shifpod',
 };
 
+export const sectionLabels = {
+  1: 'Entrance Portal',
+  2: 'Public Lounge',
+  3: 'Pizza Bar',
+  4: 'Elixir Bar',
+  5: 'DJ Booth',
+  6: 'Dome',
+  7: 'Art',
+  8: 'Bike Parking',
+  9: 'Semi Trailer',
+  10: 'Dining',
+  11: 'Kitchen',
+  12: 'Kitchen Support',
+  13: 'Boneyard',
+  14: 'Shower',
+  15: 'Generator',
+  16: 'Toilets',
+  17: 'Fuel Depot',
+  18: 'Fire Lane',
+  19: 'Tent Camping',
+  20: 'Bus',
+  21: 'RVs',
+  22: 'Car Parking',
+  23: 'Yurts',
+  24: 'Shiftpods',
+};
+
 export const sections = [
   {
     id: 1,
@@ -323,6 +350,7 @@ export const sections = [
 ].map((section) => ({
   ...section,
   name: legend[section.id],
+  label: sectionLabels[section.id],
 }));
 
 export function feetToWorld(xFt, zFt) {

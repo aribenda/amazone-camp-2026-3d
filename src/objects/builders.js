@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { feet, feetToWorld } from '../campLayout.js';
-import { createLabel } from './labels.js';
+import { createTextLabel } from './textLabels.js';
 
 const defaultMaterialOptions = {
   roughness: 0.85,
@@ -345,7 +345,7 @@ function addBikeRacks(group, section, part) {
 }
 
 function addLabel(group, section) {
-  const label = createLabel(String(section.id));
+  const label = createTextLabel(section);
   const anchor = getSectionAnchor(section);
   label.position.set(anchor.x, anchor.y, anchor.z);
   label.userData.section = section;

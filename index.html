@@ -8,10 +8,33 @@
   <body>
     <div id="app">
       <div id="viewport"></div>
-      <button id="enterButton" type="button" aria-label="Enter camp">Enter camp</button>
+      <section id="passwordGate" aria-labelledby="gateTitle">
+        <form id="passwordForm">
+          <h1 id="gateTitle">AmaZONE Camp</h1>
+          <label for="passwordInput">Camp word</label>
+          <div class="password-row">
+            <input
+              id="passwordInput"
+              name="password"
+              type="password"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+            <button type="submit">Enter</button>
+          </div>
+          <p id="passwordError" aria-live="polite"></p>
+        </form>
+      </section>
+      <button id="enterButton" class="is-hidden" type="button" aria-label="Enter camp">Enter camp</button>
       <div id="hud" aria-live="polite">
         <span id="selectedId">-</span>
         <strong id="selectedName">AmaZONE Camp 2026</strong>
+      </div>
+      <div id="mobileControls" class="is-hidden" aria-hidden="true">
+        <div id="joystick">
+          <div id="joystickKnob"></div>
+        </div>
       </div>
       <div id="crosshair" aria-hidden="true"></div>
     </div>
