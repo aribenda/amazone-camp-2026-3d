@@ -12,12 +12,6 @@ const textMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.04,
 });
 
-const poleMaterial = new THREE.MeshStandardMaterial({
-  color: '#f7f1e2',
-  roughness: 0.72,
-  metalness: 0.02,
-});
-
 export function createTextLabel(section) {
   const group = new THREE.Group();
   const text = section.label ?? section.name;
@@ -43,14 +37,6 @@ export function createTextLabel(section) {
   const front = new THREE.Mesh(geometry, textMaterial);
   front.castShadow = true;
   group.add(front);
-
-  const pole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.02, 0.02, 0.56, 10),
-    poleMaterial,
-  );
-  pole.position.y = -0.38;
-  pole.castShadow = true;
-  group.add(pole);
 
   group.scale.setScalar(scale);
   return group;

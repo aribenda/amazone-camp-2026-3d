@@ -59,3 +59,15 @@ Why: Wrangler deploy successfully created the active Worker deployment, while th
 Decision: Add project memory, status, tasks, decisions, architecture, runbook, and agent rules.
 
 Why: The owner wants the repository to be safe and understandable for multiple AI agents.
+
+## 2026-06-23: Build the Entrance Portal Procedurally First
+
+Decision: Replace the simple entrance portal with procedural Three.js geometry inspired by the supplied reference image.
+
+Why: A procedural portal can be iterated quickly inside the existing codebase, keeps the entrance in the exact layout position, and avoids waiting for a custom GLB model. If the result is not strong enough visually, a future task can replace it with a dedicated model asset.
+
+## 2026-06-23: Use Supplied GLB for Entrance Portal
+
+Decision: Replace the procedural entrance portal with `public/models/Amazone Portal.glb`.
+
+Why: The owner supplied a dedicated portal model, which should provide better visual fidelity than procedural geometry while keeping placement controlled by the existing camp layout.

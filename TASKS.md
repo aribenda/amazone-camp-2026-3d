@@ -3,10 +3,11 @@
 ## Active Tasks
 
 1. Fix or confirm the Cloudflare deployment workflow so GitHub pushes become active deployments, or document Wrangler as the release process.
-2. Improve RV visuals, preferably by replacing procedural RVs with GLB assets.
-3. Improve yurt visuals to better match the provided silver yurt reference photos.
-4. Tune mobile controls and verify the experience on real phones.
-5. Review performance impact of GLB models and the 19 MB audio file.
+2. Review the new GLB entrance portal visually and tune scale/orientation against the reference image.
+3. Improve RV visuals, preferably by replacing procedural RVs with GLB assets.
+4. Improve yurt visuals to better match the provided silver yurt reference photos.
+5. Tune mobile controls and verify the experience on real phones.
+6. Review performance impact of GLB models and the 19 MB audio file.
 
 ## Backlog
 
@@ -19,6 +20,7 @@
 - Add a visible loading state for models and audio.
 - Add optional password gate again when public sharing requires it.
 - Add automated smoke tests for build and asset availability.
+- Add model attribution/license documentation for `Amazone Portal.glb` if needed.
 
 ## Completed Tasks
 
@@ -36,3 +38,5 @@
 - Push current app to GitHub.
 - Deploy current app to Cloudflare with Wrangler.
 - Add multi-agent project docs and workflow files.
+- Replace procedural entrance portal with supplied `Amazone Portal.glb`.
+- Remove vertical poles from floating section labels.

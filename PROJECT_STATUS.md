@@ -2,11 +2,11 @@
 
 ## Last Updated
 
-2026-06-21
+2026-06-23
 
 ## Current Phase
 
-Interactive prototype stabilization and multi-agent workflow setup.
+Interactive prototype visual refinement.
 
 ## Completed
 
@@ -25,11 +25,14 @@ Interactive prototype stabilization and multi-agent workflow setup.
 - Published current app code to GitHub.
 - Deployed the current app to Cloudflare with Wrangler.
 - Added multi-agent documentation and collaboration workflow.
+- Added the supplied `Amazone Portal.glb` model as the 3D entrance portal.
+- Removed the vertical poles under floating section labels.
 
 ## In Progress
 
 - Improving visual realism while preserving layout accuracy.
 - Tuning car, RV, yurt, and camp-object placement based on visual review.
+- Reviewing the new GLB entrance portal visually in browser.
 - Clarifying Cloudflare GitHub build versus active deployment behavior.
 
 ## Broken or Risky
@@ -43,7 +46,7 @@ Interactive prototype stabilization and multi-agent workflow setup.
 
 ## Next Priority
 
-Make Cloudflare GitHub deployments automatically become active, or document the manual Wrangler deployment process as the accepted release path.
+Review the new GLB entrance portal in the browser and tune scale/orientation if needed.
 
 ## Open Questions
 

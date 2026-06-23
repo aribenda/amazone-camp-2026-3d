@@ -73,23 +73,30 @@ export function createCampSection(section) {
 }
 
 function buildPortal(group, section) {
-  const material = materialFor(section.color);
-  const postGeometry = new THREE.BoxGeometry(feet(3), feet(section.heightFt), feet(3));
-  const beamGeometry = new THREE.BoxGeometry(feet(section.widthFt), feet(4), feet(3));
   const { x, z } = feetToWorld(section.xFt, section.zFt);
-  const postOffset = feet(section.widthFt / 2 - 3);
+  const anchor = new THREE.Group();
+  anchor.name = 'Amazone Portal model';
+  anchor.position.set(x, 0, z);
+  anchor.userData.section = section;
+  group.add(anchor);
 
-  [-postOffset, postOffset].forEach((offset) => {
-    const post = new THREE.Mesh(postGeometry, material);
-    post.position.set(x + offset, feet(section.heightFt / 2), z);
-    group.add(post);
-  });
+  loadModel('/models/Amazone%20Portal.glb')
+    .then((source) => {
+      const model = source.clone(true);
+      model.userData.section = section;
+      prepareLoadedModel(model, section);
+      fitModelToDimensions(model, {
+        widthFt: section.widthFt,
+        heightFt: 22,
+        depthFt: section.depthFt,
+      });
+      anchor.add(model);
+    })
+    .catch((error) => {
+      console.warn('Could not load Amazone Portal model', error);
+    });
 
-  const beam = new THREE.Mesh(beamGeometry, material);
-  beam.position.set(x, feet(section.heightFt - 2), z);
-  group.add(beam);
-
-  addHitBox(group, section, feet(section.heightFt));
+  addHitBox(group, section, feet(21));
 }
 
 function buildCanopy(group, section) {
@@ -560,6 +567,29 @@ function scaleModelToLength(model, { lengthFt }) {
   model.position.x -= center.x;
   model.position.z -= center.z;
   model.position.y -= minY;
+}
+
+function fitModelToDimensions(model, { widthFt, heightFt, depthFt }) {
+  const initialBox = new THREE.Box3().setFromObject(model);
+  const initialCenter = initialBox.getCenter(new THREE.Vector3());
+  model.position.sub(initialCenter);
+  model.updateMatrixWorld(true);
+
+  const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+  const target = new THREE.Vector3(feet(widthFt), feet(heightFt), feet(depthFt));
+  const scale = Math.min(
+    target.x / Math.max(size.x, 0.001),
+    target.y / Math.max(size.y, 0.001),
+    target.z / Math.max(size.z, 0.001),
+  );
+  model.scale.multiplyScalar(scale);
+  model.updateMatrixWorld(true);
+
+  const scaledBox = new THREE.Box3().setFromObject(model);
+  const center = scaledBox.getCenter(new THREE.Vector3());
+  model.position.x -= center.x;
+  model.position.z -= center.z;
+  model.position.y -= scaledBox.min.y;
 }
 
 function addVehicleWheels(group, width, length, radius) {
