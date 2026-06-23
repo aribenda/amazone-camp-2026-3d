@@ -41,9 +41,11 @@ const sectionGroups = new Map();
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 const mobileMove = new THREE.Vector2();
 const keyboardVelocity = new THREE.Vector2();
+const keyboardTarget = new THREE.Vector2();
+const moveForwardVec = new THREE.Vector3();
+const moveRightVec = new THREE.Vector3();
 let highlight = null;
 let previousTime = performance.now();
-let isAuthorized = true;
 let joystickPointerId = null;
 let lookPointerId = null;
 let lookStart = null;
@@ -68,7 +70,7 @@ setupReferenceMap();
 setupCampBounds();
 setupCampSections();
 setupControls();
-syncAccessUi();
+syncMobileControls();
 tryStartMusic();
 animate();
 
@@ -80,10 +82,13 @@ function setupLights() {
   sun.position.set(-18, 32, 16);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -18;
-  sun.shadow.camera.right = 18;
-  sun.shadow.camera.top = 18;
-  sun.shadow.camera.bottom = -18;
+  const shadowExtent = feet(Math.max(camp.widthFt, camp.depthFt) / 2 + 10);
+  sun.shadow.camera.left = -shadowExtent;
+  sun.shadow.camera.right = shadowExtent;
+  sun.shadow.camera.top = shadowExtent;
+  sun.shadow.camera.bottom = -shadowExtent;
+  sun.shadow.camera.far = 120;
+  sun.shadow.camera.updateProjectionMatrix();
   scene.add(sun);
 }
 
@@ -197,9 +202,8 @@ function startMusicFromGesture() {
   }
 }
 
-function syncAccessUi() {
-  mobileControls.classList.toggle('is-hidden', !isAuthorized || !usesTouchControls());
-  document.body.classList.toggle('is-authorized', isAuthorized);
+function syncMobileControls() {
+  mobileControls.classList.toggle('is-hidden', !usesTouchControls());
 }
 
 async function tryStartMusic() {
@@ -239,10 +243,6 @@ function updateMovement(code, isPressed) {
 }
 
 function handleClick(event) {
-  if (!isAuthorized) {
-    return;
-  }
-
   if (!usesTouchControls() && !controls.isLocked) {
     controls.lock();
     return;
@@ -282,7 +282,7 @@ function selectSection(section) {
 }
 
 function handleJoystickStart(event) {
-  if (!isAuthorized || !usesTouchControls()) {
+  if (!usesTouchControls()) {
     return;
   }
 
@@ -292,7 +292,7 @@ function handleJoystickStart(event) {
 }
 
 function handleLookStart(event) {
-  if (!isAuthorized || !usesTouchControls() || event.pointerId === joystickPointerId) {
+  if (!usesTouchControls() || event.pointerId === joystickPointerId) {
     return;
   }
 
@@ -358,23 +358,22 @@ function handleResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  syncAccessUi();
+  syncMobileControls();
 }
 
 function moveWithTouch(deltaSeconds) {
-  if (!isAuthorized || !usesTouchControls() || mobileMove.lengthSq() === 0) {
+  if (!usesTouchControls() || mobileMove.lengthSq() === 0) {
     return;
   }
 
   const speed = 13 * deltaSeconds;
-  const forward = new THREE.Vector3();
-  camera.getWorldDirection(forward);
-  forward.y = 0;
-  forward.normalize();
+  camera.getWorldDirection(moveForwardVec);
+  moveForwardVec.y = 0;
+  moveForwardVec.normalize();
 
-  const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
-  camera.position.addScaledVector(forward, mobileMove.y * speed);
-  camera.position.addScaledVector(right, mobileMove.x * speed);
+  moveRightVec.crossVectors(moveForwardVec, camera.up).normalize();
+  camera.position.addScaledVector(moveForwardVec, mobileMove.y * speed);
+  camera.position.addScaledVector(moveRightVec, mobileMove.x * speed);
 }
 
 function usesTouchControls() {
@@ -404,16 +403,16 @@ function animate() {
   if (controls.isLocked) {
     const xAxis = Number(movement.right) - Number(movement.left);
     const zAxis = Number(movement.forward) - Number(movement.backward);
-    const target = new THREE.Vector2(xAxis, zAxis);
+    keyboardTarget.set(xAxis, zAxis);
 
-    if (target.lengthSq() > 1) {
-      target.normalize();
+    if (keyboardTarget.lengthSq() > 1) {
+      keyboardTarget.normalize();
     }
 
-    target.multiplyScalar(MAX_KEYBOARD_SPEED);
-    const rate = target.lengthSq() > 0 ? KEYBOARD_ACCELERATION : KEYBOARD_DECELERATION;
-    keyboardVelocity.x = moveToward(keyboardVelocity.x, target.x, rate * deltaSeconds);
-    keyboardVelocity.y = moveToward(keyboardVelocity.y, target.y, rate * deltaSeconds);
+    keyboardTarget.multiplyScalar(MAX_KEYBOARD_SPEED);
+    const rate = keyboardTarget.lengthSq() > 0 ? KEYBOARD_ACCELERATION : KEYBOARD_DECELERATION;
+    keyboardVelocity.x = moveToward(keyboardVelocity.x, keyboardTarget.x, rate * deltaSeconds);
+    keyboardVelocity.y = moveToward(keyboardVelocity.y, keyboardTarget.y, rate * deltaSeconds);
 
     if (Math.abs(keyboardVelocity.y) > 0.001) {
       controls.moveForward(keyboardVelocity.y * deltaSeconds);
@@ -421,8 +420,6 @@ function animate() {
     if (Math.abs(keyboardVelocity.x) > 0.001) {
       controls.moveRight(keyboardVelocity.x * deltaSeconds);
     }
-
-    clampCameraToCamp();
   }
 
   moveWithTouch(deltaSeconds);
