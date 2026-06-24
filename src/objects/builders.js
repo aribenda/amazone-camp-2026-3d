@@ -44,7 +44,7 @@ export function createCampSection(section) {
     portal: buildPortal,
     lounge: buildCanopy,
     bar: buildBar,
-    booth: buildBox,
+    booth: buildDjBooth,
     dome: buildDome,
     art: buildArt,
     bikeParking: buildMultiFlat,
@@ -58,7 +58,7 @@ export function createCampSection(section) {
     fuel: buildFuelDepot,
     fireLane: buildFlatZone,
     tentCamping: buildTentCamping,
-    bus: buildVehicle,
+    bus: buildBus,
     rv: buildMultiVehicle,
     parking: buildParking,
     yurts: buildYurts,
@@ -152,6 +152,17 @@ function buildBox(group, section) {
   group.add(mesh);
 }
 
+function buildDjBooth(group, section) {
+  addSectionModel(group, section, {
+    url: '/models/dj%20booth.glb',
+    name: 'DJ Booth model',
+    widthFt: section.widthFt,
+    heightFt: section.heightFt,
+    depthFt: section.depthFt,
+    fitMode: 'dimensions',
+  });
+}
+
 function buildDome(group, section) {
   const { x, z } = feetToWorld(section.xFt, section.zFt);
   const radius = feet(section.radiusFt);
@@ -226,6 +237,18 @@ function buildVehicle(group, section) {
       );
       group.add(wheel);
     });
+  });
+}
+
+function buildBus(group, section) {
+  addSectionModel(group, section, {
+    url: '/models/yellow_school_bus.glb',
+    name: 'School Bus model',
+    widthFt: section.widthFt,
+    heightFt: section.heightFt,
+    depthFt: section.depthFt,
+    fitMode: 'dimensions',
+    alignLongAxis: 'z',
   });
 }
 
@@ -523,6 +546,50 @@ function addModelCar(group, section, spot, modelConfig, index) {
     });
 }
 
+function addSectionModel(group, section, modelConfig) {
+  const { x, z } = feetToWorld(section.xFt, section.zFt);
+  const anchor = new THREE.Group();
+  anchor.name = modelConfig.name;
+  anchor.position.set(x, 0, z);
+  anchor.rotation.y = THREE.MathUtils.degToRad(section.rotationDeg ?? 0);
+  anchor.userData.section = section;
+
+  const hitBox = new THREE.Mesh(
+    new THREE.BoxGeometry(feet(modelConfig.widthFt), feet(modelConfig.heightFt), feet(modelConfig.depthFt)),
+    new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    }),
+  );
+  hitBox.position.y = feet(modelConfig.heightFt / 2);
+  hitBox.userData.section = section;
+  anchor.add(hitBox);
+  group.add(anchor);
+
+  loadModel(modelConfig.url)
+    .then((source) => {
+      const model = source.clone(true);
+      model.userData.section = section;
+      prepareLoadedModel(model, section);
+
+      if (modelConfig.alignLongAxis) {
+        alignModelLongAxis(model, modelConfig.alignLongAxis);
+      }
+
+      if (modelConfig.fitMode === 'dimensions') {
+        fitModelToDimensions(model, modelConfig);
+      } else {
+        scaleModelToLength(model, modelConfig);
+      }
+
+      anchor.add(model);
+    })
+    .catch((error) => {
+      console.warn(`Could not load ${modelConfig.name}`, error);
+    });
+}
+
 function loadModel(url) {
   if (!modelCache.has(url)) {
     modelCache.set(
@@ -532,6 +599,24 @@ function loadModel(url) {
   }
 
   return modelCache.get(url);
+}
+
+function alignModelLongAxis(model, targetAxis) {
+  model.updateMatrixWorld(true);
+  const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+  const currentAxis = size.x > size.z ? 'x' : 'z';
+
+  if (currentAxis === targetAxis) {
+    return;
+  }
+
+  model.rotation.y += Math.PI / 2;
+  model.updateMatrixWorld(true);
+
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.x -= center.x;
+  model.position.z -= center.z;
 }
 
 function prepareLoadedModel(model, section) {

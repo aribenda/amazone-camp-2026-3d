@@ -2,7 +2,7 @@
 
 ## Last Updated
 
-2026-06-23
+2026-06-24
 
 ## Current Phase
 
@@ -27,11 +27,15 @@ Interactive prototype visual refinement.
 - Added multi-agent documentation and collaboration workflow.
 - Added the supplied `Amazone Portal.glb` model as the 3D entrance portal.
 - Removed the vertical poles under floating section labels.
+- Added a procedural cracked-playa ground texture with bump/roughness maps while preserving delimiter overlays.
+- Replaced the school bus and DJ booth placeholders with supplied GLB models.
 
 ## In Progress
 
 - Improving visual realism while preserving layout accuracy.
 - Tuning car, RV, yurt, and camp-object placement based on visual review.
+- Reviewing the cracked-playa ground texture visually in browser; crack repeat scale was reduced after the first pass looked too large.
+- Reviewing the school bus and DJ booth GLB scale/orientation in browser.
 - Reviewing the new GLB entrance portal visually in browser.
 - Clarifying Cloudflare GitHub build versus active deployment behavior.
 
@@ -46,7 +50,7 @@ Interactive prototype visual refinement.
 
 ## Next Priority
 
-Review the new GLB entrance portal in the browser and tune scale/orientation if needed.
+Review the cracked-playa ground texture in the browser and tune scale/contrast if needed.
 
 ## Open Questions
 

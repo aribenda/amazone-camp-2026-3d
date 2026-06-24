@@ -71,3 +71,15 @@ Why: A procedural portal can be iterated quickly inside the existing codebase, k
 Decision: Replace the procedural entrance portal with `public/models/Amazone Portal.glb`.
 
 Why: The owner supplied a dedicated portal model, which should provide better visual fidelity than procedural geometry while keeping placement controlled by the existing camp layout.
+
+## 2026-06-24: Generate Playa Ground Texture Procedurally
+
+Decision: Use code-generated canvas textures for the cracked playa floor instead of adding another image asset.
+
+Why: Procedural color, bump, and roughness maps keep the texture repeatable across the whole virtual world, avoid another external asset dependency, and preserve existing delimiter lines/reference overlays above the ground.
+
+## 2026-06-24: Use Supplied GLB Models for Bus and DJ Booth
+
+Decision: Replace the bus and DJ booth placeholder geometry with `yellow_school_bus.glb` and `dj booth.glb`.
+
+Why: Supplied GLB assets provide better visual fidelity than simple boxes while preserving placement and scale through the existing camp layout data.

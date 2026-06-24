@@ -3,11 +3,13 @@
 ## Active Tasks
 
 1. Fix or confirm the Cloudflare deployment workflow so GitHub pushes become active deployments, or document Wrangler as the release process.
-2. Review the new GLB entrance portal visually and tune scale/orientation against the reference image.
-3. Improve RV visuals, preferably by replacing procedural RVs with GLB assets.
-4. Improve yurt visuals to better match the provided silver yurt reference photos.
-5. Tune mobile controls and verify the experience on real phones.
-6. Review performance impact of GLB models and the 19 MB audio file.
+2. Review the cracked-playa ground texture after reducing crack scale and tune contrast if needed.
+3. Review the school bus and DJ booth GLB scale/orientation in browser.
+4. Review the new GLB entrance portal visually and tune scale/orientation against the reference image.
+5. Improve RV visuals, preferably by replacing procedural RVs with GLB assets.
+6. Improve yurt visuals to better match the provided silver yurt reference photos.
+7. Tune mobile controls and verify the experience on real phones.
+8. Review performance impact of GLB models and the 19 MB audio file.
 
 ## Backlog
 
@@ -40,3 +42,5 @@
 - Add multi-agent project docs and workflow files.
 - Replace procedural entrance portal with supplied `Amazone Portal.glb`.
 - Remove vertical poles from floating section labels.
+- Add procedural cracked-playa ground texture while keeping delimiter lines/reference overlays visible.
+- Replace school bus and DJ booth placeholders with supplied GLB models.
