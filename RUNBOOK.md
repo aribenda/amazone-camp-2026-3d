@@ -38,8 +38,10 @@ Manual smoke test:
 4. Use `W`, `A`, `S`, `D` to move.
 5. Click objects or labels and verify section names update.
 6. Check car parking models load.
-7. Check music button appears and can play/pause.
-8. On mobile or narrow viewport, verify touch controls appear.
+7. Walk out through the entrance portal and confirm the Man landmark is visible, reachable, grounded, and not walk-through at its main trunk.
+8. Check Reset position and Fullscreen controls.
+9. Check music button appears and can play/pause.
+10. On mobile or narrow viewport, verify touch controls appear.
 
 ## Troubleshooting
 
@@ -61,6 +63,7 @@ Check:
 
 - Model files exist in `public/models/`.
 - The paths in `src/objects/builders.js` start with `/models/`.
+- The Man landmark path in `src/main.js` points to `/models/BM%20man%202026.glb`.
 - Browser console has no GLB loading errors.
 - `npm run build` passes.
 

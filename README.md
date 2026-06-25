@@ -27,7 +27,9 @@ The 2D camp plan is useful, but it is hard to feel distances, scale, adjacency, 
 - Rotating 3D-style labels for camp areas.
 - Procedural placeholder geometry for camp infrastructure, yurts, shiftpods, RVs, and structures.
 - GLB model loading for car parking assets.
+- Off-camp Burning Man landmark loaded from a supplied GLB model.
 - Background music from `public/audio/tribal-journey.mp3` with a play/pause control.
+- Welcome overlay, reset-position control, and fullscreen control for easier sharing.
 - Cloudflare static assets deployment through `wrangler.toml`.
 
 ## Current Scope

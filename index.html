@@ -9,7 +9,26 @@
     <div id="app">
       <div id="viewport"></div>
       <audio id="campMusic" src="/audio/tribal-journey.mp3" preload="metadata" autoplay loop></audio>
-      <button id="musicToggle" type="button" aria-pressed="false">Play music</button>
+      <div id="welcomeOverlay">
+        <div id="welcomeCard">
+          <div id="welcomeSign">
+            <img src="/amazone-wordmark.png" alt="AmaZONE" />
+            <span>Camp 2026</span>
+          </div>
+          <div id="welcomeInstructions" aria-label="Controls">
+            <span>Click to enter</span>
+            <span><strong>WASD</strong> / <strong>Arrows</strong> move</span>
+            <span>Mouse to look</span>
+            <span><strong>Shift</strong> faster</span>
+          </div>
+          <button type="button">Enter camp</button>
+        </div>
+      </div>
+      <div id="utilityControls">
+        <button id="resetButton" type="button">Reset position</button>
+        <button id="fullscreenButton" type="button">Fullscreen</button>
+        <button id="musicToggle" type="button" aria-pressed="false">Play music</button>
+      </div>
       <div id="hud" aria-live="polite">
         <span id="selectedId">-</span>
         <strong id="selectedName">AmaZONE Camp 2026</strong>

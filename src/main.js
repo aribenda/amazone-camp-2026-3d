@@ -2,24 +2,40 @@ import './styles.css';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { camp, feet, feetToWorld, referenceMap, sections } from './campLayout.js';
-import { createCampSection } from './objects/builders.js';
+import { createCampSection, loadModel } from './objects/builders.js';
 
 const viewport = document.querySelector('#viewport');
 const campMusic = document.querySelector('#campMusic');
 const musicToggle = document.querySelector('#musicToggle');
+const resetButton = document.querySelector('#resetButton');
+const fullscreenButton = document.querySelector('#fullscreenButton');
+const welcomeOverlay = document.querySelector('#welcomeOverlay');
 const selectedId = document.querySelector('#selectedId');
 const selectedName = document.querySelector('#selectedName');
 const mobileControls = document.querySelector('#mobileControls');
 const joystick = document.querySelector('#joystick');
 const joystickKnob = document.querySelector('#joystickKnob');
 
+// Man landmark tuning. Position is in the same camp-plan feet coordinates:
+// x grows left-to-right on the layout, z grows from portal/front toward camp/back.
+const MAN_POSITION = { xFt: -186, zFt: 52 };
+const MAN_ROTATION = { xDeg: 0, yDeg: -68, zDeg: 0 };
+const MAN_SCALE = { heightFt: 62 };
+const MAN_VISIBILITY_DISTANCE = 420;
+const MAN_MODEL_URL = '/models/BM%20man%202026.glb';
+const MAN_COLLISION_RADIUS_FT = 8.5;
+const MAN_DESTINATION_RADIUS_FT = 42;
+const CAMP_EDGE_MARGIN_FT = 12;
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#d8d1bd');
-scene.fog = new THREE.Fog('#d8d1bd', 18, 54);
+scene.fog = new THREE.Fog('#d8d1bd', 20, 66);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 100);
-camera.position.set(0, feet(6), -feet(112));
-camera.rotation.y = Math.PI;
+const INITIAL_CAMERA_POSITION = new THREE.Vector3(0, feet(6), -feet(112));
+const INITIAL_CAMERA_ROTATION = new THREE.Euler(0, Math.PI, 0, 'YXZ');
+camera.position.copy(INITIAL_CAMERA_POSITION);
+camera.rotation.copy(INITIAL_CAMERA_ROTATION);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -38,9 +54,12 @@ const labelTarget = new THREE.Vector3();
 const clickableObjects = [];
 const rotatingLabels = [];
 const sectionGroups = new Map();
+const collisionCircles = [];
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 const mobileMove = new THREE.Vector2();
 const keyboardVelocity = new THREE.Vector2();
+const manWorldPosition = feetToWorld(MAN_POSITION.xFt, MAN_POSITION.zFt);
+const walkableBounds = createWalkableBounds();
 let highlight = null;
 let previousTime = performance.now();
 let isAuthorized = true;
@@ -54,11 +73,13 @@ const movement = {
   backward: false,
   left: false,
   right: false,
+  sprint: false,
 };
 
 const isTouchDevice = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 const MOBILE_CONTROL_WIDTH = 760;
-const MAX_KEYBOARD_SPEED = 18;
+const WALK_KEYBOARD_SPEED = 11;
+const SPRINT_KEYBOARD_SPEED = 18;
 const KEYBOARD_ACCELERATION = 6;
 const KEYBOARD_DECELERATION = 16;
 
@@ -67,6 +88,7 @@ setupGround();
 setupReferenceMap();
 setupCampBounds();
 setupCampSections();
+setupManLandmark();
 setupControls();
 syncAccessUi();
 tryStartMusic();
@@ -77,20 +99,24 @@ function setupLights() {
   scene.add(hemisphere);
 
   const sun = new THREE.DirectionalLight('#fff4d0', 2.7);
-  sun.position.set(-18, 32, 16);
+  sun.position.set(-24, 38, 18);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -18;
-  sun.shadow.camera.right = 18;
-  sun.shadow.camera.top = 18;
-  sun.shadow.camera.bottom = -18;
+  sun.shadow.camera.left = -42;
+  sun.shadow.camera.right = 42;
+  sun.shadow.camera.top = 42;
+  sun.shadow.camera.bottom = -42;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 95;
   scene.add(sun);
 }
 
 function setupGround() {
+  const groundWidthFt = camp.widthFt + MAN_VISIBILITY_DISTANCE * 1.1;
+  const groundDepthFt = camp.depthFt + MAN_VISIBILITY_DISTANCE * 2;
   const playaTextures = createCrackedPlayaTextures();
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(feet(camp.widthFt + 100), feet(camp.depthFt + 100)),
+    new THREE.PlaneGeometry(feet(groundWidthFt), feet(groundDepthFt)),
     new THREE.MeshStandardMaterial({
       color: '#d8d0ba',
       map: playaTextures.colorMap,
@@ -194,10 +220,14 @@ function createCrackedPlayaTextures() {
   const bumpMap = new THREE.CanvasTexture(bumpCanvas);
   const roughnessMap = new THREE.CanvasTexture(bumpCanvas);
 
+  const repeatPerFoot = 170 / (camp.widthFt + 100);
+  const groundWidthFt = camp.widthFt + MAN_VISIBILITY_DISTANCE * 1.1;
+  const groundDepthFt = camp.depthFt + MAN_VISIBILITY_DISTANCE * 2;
+
   [colorMap, bumpMap, roughnessMap].forEach((texture) => {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(170, 145);
+    texture.repeat.set(groundWidthFt * repeatPerFoot, groundDepthFt * repeatPerFoot);
     texture.anisotropy = 8;
   });
   colorMap.colorSpace = THREE.SRGBColorSpace;
@@ -320,12 +350,87 @@ function setupCampSections() {
   });
 }
 
+function setupManLandmark() {
+  const anchor = new THREE.Group();
+  anchor.name = 'Burning Man landmark';
+  anchor.position.set(manWorldPosition.x, 0, manWorldPosition.z);
+  scene.add(anchor);
+
+  collisionCircles.push({
+    name: 'Burning Man trunk collision',
+    center: new THREE.Vector2(manWorldPosition.x, manWorldPosition.z),
+    radius: feet(MAN_COLLISION_RADIUS_FT),
+  });
+
+  loadModel(MAN_MODEL_URL)
+    .then((source) => {
+      const model = source.clone(true);
+      model.name = 'BM man 2026 model';
+      prepareManModel(model);
+      fitManModelToScene(model);
+      anchor.add(model);
+    })
+    .catch((error) => {
+      console.warn('Could not load Burning Man landmark model', error);
+    });
+}
+
+function prepareManModel(model) {
+  model.traverse((child) => {
+    if (!child.isMesh) {
+      return;
+    }
+
+    child.castShadow = true;
+    child.receiveShadow = true;
+
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    materials.filter(Boolean).forEach((material) => {
+      [
+        material.map,
+        material.normalMap,
+        material.roughnessMap,
+        material.metalnessMap,
+        material.emissiveMap,
+      ].filter(Boolean).forEach((texture) => {
+        texture.anisotropy = Math.max(texture.anisotropy ?? 1, 8);
+      });
+    });
+  });
+}
+
+function fitManModelToScene(model) {
+  model.updateMatrixWorld(true);
+  const initialBox = new THREE.Box3().setFromObject(model);
+  const initialCenter = initialBox.getCenter(new THREE.Vector3());
+  const initialSize = initialBox.getSize(new THREE.Vector3());
+
+  model.position.sub(initialCenter);
+  model.scale.multiplyScalar(feet(MAN_SCALE.heightFt) / Math.max(initialSize.y, 0.001));
+  model.rotation.set(
+    THREE.MathUtils.degToRad(MAN_ROTATION.xDeg),
+    THREE.MathUtils.degToRad(MAN_ROTATION.yDeg),
+    THREE.MathUtils.degToRad(MAN_ROTATION.zDeg),
+  );
+  model.updateMatrixWorld(true);
+
+  const fittedBox = new THREE.Box3().setFromObject(model);
+  const fittedCenter = fittedBox.getCenter(new THREE.Vector3());
+  model.position.x -= fittedCenter.x;
+  model.position.z -= fittedCenter.z;
+  model.position.y -= fittedBox.min.y;
+}
+
 function setupControls() {
   musicToggle.addEventListener('click', toggleMusic);
+  resetButton.addEventListener('click', resetPosition);
+  fullscreenButton.addEventListener('click', toggleFullscreen);
+  welcomeOverlay.addEventListener('click', enterExperience);
   window.addEventListener('pointerdown', startMusicFromGesture, { once: true });
   window.addEventListener('keydown', startMusicFromGesture, { once: true });
 
   controls.addEventListener('lock', () => {
+    dismissWelcomeOverlay();
     document.body.classList.add('is-looking');
   });
 
@@ -334,7 +439,7 @@ function setupControls() {
     document.body.classList.remove('is-looking');
   });
 
-  window.addEventListener('keydown', (event) => updateMovement(event.code, true));
+  window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', (event) => updateMovement(event.code, false));
   renderer.domElement.addEventListener('click', handleClick);
   renderer.domElement.addEventListener('pointerdown', handleLookStart);
@@ -342,6 +447,7 @@ function setupControls() {
   window.addEventListener('pointerup', handlePointerEnd);
   window.addEventListener('pointercancel', handlePointerEnd);
   joystick.addEventListener('pointerdown', handleJoystickStart);
+  document.addEventListener('fullscreenchange', updateFullscreenButton);
   window.addEventListener('resize', handleResize);
 }
 
@@ -385,17 +491,80 @@ function updateMusicButton(isPlaying) {
   musicToggle.setAttribute('aria-pressed', String(isPlaying));
 }
 
+function enterExperience() {
+  dismissWelcomeOverlay();
+  startMusicFromGesture();
+
+  if (!usesTouchControls() && !controls.isLocked) {
+    controls.lock();
+  }
+}
+
+function dismissWelcomeOverlay() {
+  welcomeOverlay.classList.add('is-hidden');
+}
+
+function resetPosition() {
+  movement.forward = false;
+  movement.backward = false;
+  movement.left = false;
+  movement.right = false;
+  movement.sprint = false;
+  keyboardVelocity.set(0, 0);
+  mobileMove.set(0, 0);
+  joystickKnob.style.transform = 'translate(-50%, -50%)';
+  camera.position.copy(INITIAL_CAMERA_POSITION);
+  camera.rotation.copy(INITIAL_CAMERA_ROTATION);
+  cameraEuler.setFromQuaternion(camera.quaternion);
+}
+
+async function toggleFullscreen() {
+  try {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen();
+      updateFullscreenButton();
+      return;
+    }
+
+    await document.exitFullscreen();
+    updateFullscreenButton();
+  } catch {
+    updateFullscreenButton();
+  }
+}
+
+function updateFullscreenButton() {
+  fullscreenButton.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+}
+
+function handleKeyDown(event) {
+  if (event.code === 'KeyR') {
+    resetPosition();
+    return;
+  }
+
+  if (event.code === 'KeyF' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    toggleFullscreen();
+    return;
+  }
+
+  updateMovement(event.code, true);
+}
+
 function updateMovement(code, isPressed) {
   if (code === 'KeyW' || code === 'ArrowUp') movement.forward = isPressed;
   if (code === 'KeyS' || code === 'ArrowDown') movement.backward = isPressed;
   if (code === 'KeyA' || code === 'ArrowLeft') movement.left = isPressed;
   if (code === 'KeyD' || code === 'ArrowRight') movement.right = isPressed;
+  if (code === 'ShiftLeft' || code === 'ShiftRight') movement.sprint = isPressed;
 }
 
 function handleClick(event) {
   if (!isAuthorized) {
     return;
   }
+
+  dismissWelcomeOverlay();
 
   if (!usesTouchControls() && !controls.isLocked) {
     controls.lock();
@@ -521,6 +690,7 @@ function moveWithTouch(deltaSeconds) {
   }
 
   const speed = 13 * deltaSeconds;
+  const previousPosition = camera.position.clone();
   const forward = new THREE.Vector3();
   camera.getWorldDirection(forward);
   forward.y = 0;
@@ -529,24 +699,69 @@ function moveWithTouch(deltaSeconds) {
   const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
   camera.position.addScaledVector(forward, mobileMove.y * speed);
   camera.position.addScaledVector(right, mobileMove.x * speed);
+  clampCameraToWalkableArea(previousPosition);
 }
 
 function usesTouchControls() {
   return isTouchDevice || window.innerWidth <= MOBILE_CONTROL_WIDTH;
 }
 
-function clampCameraToCamp() {
+function createWalkableBounds() {
+  const campMinX = -feet(camp.widthFt / 2 + CAMP_EDGE_MARGIN_FT);
+  const campMaxX = feet(camp.widthFt / 2 + CAMP_EDGE_MARGIN_FT);
+  const campMinZ = -feet(camp.depthFt / 2 + CAMP_EDGE_MARGIN_FT);
+  const campMaxZ = feet(camp.depthFt / 2 + CAMP_EDGE_MARGIN_FT);
+  const destinationRadius = feet(MAN_DESTINATION_RADIUS_FT);
+
+  return {
+    minX: Math.min(campMinX, manWorldPosition.x - destinationRadius),
+    maxX: Math.max(campMaxX, manWorldPosition.x + destinationRadius),
+    minZ: Math.min(campMinZ, manWorldPosition.z - destinationRadius),
+    maxZ: Math.max(campMaxZ, manWorldPosition.z + destinationRadius),
+  };
+}
+
+function clampCameraToWalkableArea(previousPosition) {
   camera.position.y = feet(6);
   camera.position.x = THREE.MathUtils.clamp(
     camera.position.x,
-    -feet(camp.widthFt / 2 + 12),
-    feet(camp.widthFt / 2 + 12),
+    walkableBounds.minX,
+    walkableBounds.maxX,
   );
   camera.position.z = THREE.MathUtils.clamp(
     camera.position.z,
-    -feet(camp.depthFt / 2 + 12),
-    feet(camp.depthFt / 2 + 12),
+    walkableBounds.minZ,
+    walkableBounds.maxZ,
   );
+
+  resolveCameraCollisions(previousPosition);
+}
+
+function resolveCameraCollisions(previousPosition) {
+  collisionCircles.forEach((circle) => {
+    const dx = camera.position.x - circle.center.x;
+    const dz = camera.position.z - circle.center.y;
+    const distance = Math.hypot(dx, dz);
+
+    if (distance >= circle.radius) {
+      return;
+    }
+
+    if (distance < 0.0001 && previousPosition) {
+      camera.position.x = previousPosition.x;
+      camera.position.z = previousPosition.z;
+      return;
+    }
+
+    if (distance < 0.0001) {
+      camera.position.x += circle.radius;
+      return;
+    }
+
+    const push = circle.radius - distance;
+    camera.position.x += (dx / distance) * push;
+    camera.position.z += (dz / distance) * push;
+  });
 }
 
 function animate() {
@@ -556,6 +771,7 @@ function animate() {
   previousTime = now;
 
   if (controls.isLocked) {
+    const previousPosition = camera.position.clone();
     const xAxis = Number(movement.right) - Number(movement.left);
     const zAxis = Number(movement.forward) - Number(movement.backward);
     const target = new THREE.Vector2(xAxis, zAxis);
@@ -564,7 +780,7 @@ function animate() {
       target.normalize();
     }
 
-    target.multiplyScalar(MAX_KEYBOARD_SPEED);
+    target.multiplyScalar(movement.sprint ? SPRINT_KEYBOARD_SPEED : WALK_KEYBOARD_SPEED);
     const rate = target.lengthSq() > 0 ? KEYBOARD_ACCELERATION : KEYBOARD_DECELERATION;
     keyboardVelocity.x = moveToward(keyboardVelocity.x, target.x, rate * deltaSeconds);
     keyboardVelocity.y = moveToward(keyboardVelocity.y, target.y, rate * deltaSeconds);
@@ -576,11 +792,11 @@ function animate() {
       controls.moveRight(keyboardVelocity.x * deltaSeconds);
     }
 
-    clampCameraToCamp();
+    clampCameraToWalkableArea(previousPosition);
   }
 
   moveWithTouch(deltaSeconds);
-  clampCameraToCamp();
+  clampCameraToWalkableArea();
 
   rotatingLabels.forEach((label, index) => {
     labelTarget.set(camera.position.x, label.position.y, camera.position.z);

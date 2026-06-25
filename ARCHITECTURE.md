@@ -29,12 +29,14 @@ Owns:
 
 - Three.js scene, camera, renderer, and lights.
 - Ground plane and reference map setup.
+- Off-camp Man landmark placement, walkable bounds, and simple collision.
 - Camp section creation.
 - Pointer lock controls.
 - Mobile controls.
 - Click selection and highlighting.
 - Rotating labels.
 - Music playback behavior.
+- Welcome, reset, and fullscreen controls.
 - Animation loop.
 
 ### `src/objects/builders.js`
@@ -67,10 +69,11 @@ Configures Cloudflare Worker static asset deployment from `./dist`.
 1. `src/main.js` imports camp data from `src/campLayout.js`.
 2. For each section in `sections`, `createCampSection()` in `src/objects/builders.js` builds a Three.js group.
 3. Main scene adds each group and registers meshes/sprites as clickable objects.
-4. User input updates camera position or camera rotation.
-5. Raycasting maps clicks to section metadata.
-6. Vite bundles source into `dist/`.
-7. Wrangler uploads `dist/` to Cloudflare.
+4. `src/main.js` loads off-camp landmarks such as the Man through the shared GLB loader.
+5. User input updates camera position or camera rotation, then clamps it to the walkable bounds and simple collision shapes.
+6. Raycasting maps clicks to section metadata.
+7. Vite bundles source into `dist/`.
+8. Wrangler uploads `dist/` to Cloudflare.
 
 ## Integrations
 

@@ -83,3 +83,15 @@ Why: Procedural color, bump, and roughness maps keep the texture repeatable acro
 Decision: Replace the bus and DJ booth placeholder geometry with `yellow_school_bus.glb` and `dj booth.glb`.
 
 Why: Supplied GLB assets provide better visual fidelity than simple boxes while preserving placement and scale through the existing camp layout data.
+
+## 2026-06-25: Add the Man as an Off-Camp Landmark
+
+Decision: Load `public/models/BM man 2026.glb` once through the shared GLB cache and place it from named constants in `src/main.js` rather than adding it as a numbered camp section.
+
+Why: The Man is outside the 250 ft by 200 ft camp plan and should behave like a separate playa destination. Keeping `MAN_POSITION`, `MAN_ROTATION`, `MAN_SCALE`, and `MAN_VISIBILITY_DISTANCE` together makes later placement tuning easy without changing the source model.
+
+## 2026-06-25: Use Simple Landmark Collision
+
+Decision: Add a circular camera collision boundary around the Man trunk instead of generating mesh-level collision from the model.
+
+Why: The model has detailed branch geometry, and full mesh collision would be unnecessary and expensive. A simple invisible boundary blocks walking through the main mass while keeping the scene performant.

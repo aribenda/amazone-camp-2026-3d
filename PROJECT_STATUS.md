@@ -2,7 +2,7 @@
 
 ## Last Updated
 
-2026-06-24
+2026-06-25
 
 ## Current Phase
 
@@ -29,6 +29,12 @@ Interactive prototype visual refinement.
 - Removed the vertical poles under floating section labels.
 - Added a procedural cracked-playa ground texture with bump/roughness maps while preserving delimiter overlays.
 - Replaced the school bus and DJ booth placeholders with supplied GLB models.
+- Added the supplied `BM man 2026.glb` as an off-camp Burning Man landmark visible from the portal route.
+- Repositioned the Man landmark about 200 ft beyond the camp boundary and shifted it along the side boundary to align with the requested crosshair position.
+- Added a welcome/instruction overlay, reset-position control, fullscreen control, and Shift sprint behavior.
+- Restyled the welcome overlay with the borderless AmaZONE sign image, a matching purple-blue sign background, stacked `Camp 2026` text, and cleaner aligned control instructions.
+- Expanded the walkable playa bounds so visitors can reach the Man without opening the whole world too broadly.
+- Added simple circular collision around the Man trunk.
 
 ## In Progress
 
@@ -37,6 +43,7 @@ Interactive prototype visual refinement.
 - Reviewing the cracked-playa ground texture visually in browser; crack repeat scale was reduced after the first pass looked too large.
 - Reviewing the school bus and DJ booth GLB scale/orientation in browser.
 - Reviewing the new GLB entrance portal visually in browser.
+- Reviewing the Man landmark visually in a normal desktop browser, especially final rotation/front-facing direction.
 - Clarifying Cloudflare GitHub build versus active deployment behavior.
 
 ## Broken or Risky
@@ -47,10 +54,12 @@ Interactive prototype visual refinement.
 - Music autoplay may be blocked by browsers until the user clicks or presses a key.
 - The root-level `Tribal Journey.mp3` is untracked and duplicates the published audio asset.
 - Large media/model files increase deploy size and load time.
+- `BM man 2026.glb` is about 23.9 MB, close to Cloudflare's 25 MB single-asset limit.
+- In-app screenshot capture timed out against the WebGL canvas during automated testing, so visual review should still be done manually in a desktop browser.
 
 ## Next Priority
 
-Review the cracked-playa ground texture in the browser and tune scale/contrast if needed.
+Review the far Man landmark behind the dome in a normal desktop browser, then tune `MAN_POSITION`, `MAN_ROTATION`, or `MAN_SCALE` if needed.
 
 ## Open Questions
 
@@ -58,3 +67,4 @@ Review the cracked-playa ground texture in the browser and tune scale/contrast i
 - Should the untracked root `Tribal Journey.mp3` be deleted, ignored, or kept as a local source file?
 - Which yurt/RV assets should replace the procedural placeholders?
 - What is the acceptable initial load time with music and GLB models included?
+- Should `BM man 2026.glb` be optimized later to reduce load time, or kept at full exported quality for now?

@@ -590,7 +590,7 @@ function addSectionModel(group, section, modelConfig) {
     });
 }
 
-function loadModel(url) {
+export function loadModel(url) {
   if (!modelCache.has(url)) {
     modelCache.set(
       url,

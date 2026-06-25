@@ -39,6 +39,7 @@ Owner: Ariel David / GitHub user `aribenda`.
 
 - Keep the project as a real Vite/Three.js codebase rather than switching to a one-shot web generator.
 - Use external `.glb` model assets for realistic vehicles instead of hand-building cars from boxes.
+- Use supplied `.glb` model assets for high-fidelity landmarks and key camp structures when available.
 - Keep procedural geometry for lower-priority structures until better assets are available.
 - Remove the password gate during active local testing.
 - Keep music as a browser audio element with autoplay attempt plus user-triggered fallback, because browsers often block unmuted autoplay.
@@ -51,6 +52,7 @@ Owner: Ariel David / GitHub user `aribenda`.
 - Never work directly on `main`.
 - Before changing layout, understand that `src/campLayout.js` uses feet and converts to Three.js units with `feet()` and `feetToWorld()`.
 - Car parking currently uses model files in `public/models/`.
+- The off-camp Man landmark uses `public/models/BM man 2026.glb` and is tuned in `src/main.js` through `MAN_POSITION`, `MAN_ROTATION`, `MAN_SCALE`, and `MAN_VISIBILITY_DISTANCE`.
 - Yurts and RVs are still placeholders and are likely future improvement areas.
 - Cloudflare dashboard may show GitHub builds that succeed but do not become active deployments. Wrangler deploy has successfully made versions active.
 - The latest known successful Cloudflare active deploy used Wrangler after commit `e95cd75`.
